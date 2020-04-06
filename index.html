@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Typershark</title>
+    <style>
+        html, body {
+            width: 100%;
+            height: 100%;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            background-color: black;
+            display: grid;
+            grid-template-areas: ". . ." ". stats ." ". container ." ". . .";
+            grid-template-rows: minmax(40px, 1fr) max-content minmax(400px, 800px) minmax(40px, 1fr);
+            grid-template-columns: minmax(40px, 1fr) minmax(400px, 1200px) minmax(40px, 1fr);
+        }
+
+        #stats, #container {
+            background-color: dodgerblue;
+        }
+
+        #stats {
+            grid-area: stats;
+            display: grid;
+            grid-template-rows: 1fr;
+            grid-template-columns: 1fr 1fr 1fr;
+            padding: 20px;
+        }
+
+        #health {
+        }
+
+        #wpm, #score {
+            text-align: center;
+        }
+
+        #score {
+            text-align: center;
+        }
+
+        #wpm, #score, .shark-word {
+            color: white;
+            font-family: "Comic Sans MS";
+        }
+
+        #container {
+            grid-area: container;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .red {
+            color: red;
+        }
+
+        .heart {
+            width: 40px;
+            height: 40px;
+        }
+
+        .heart:not(:last-child) {
+            margin-right: 20px;
+        }
+
+        .shark {
+            position: absolute;
+            transform: translate(0%, -50%);
+        }
+
+        .shark-word {
+            font-size: 20px;
+            position: absolute;
+            left: 15%;
+            top: 50%;
+            transform: translate(0%, -50%);
+            text-shadow: -2px 0 black 0 2px black, 2px 0 black, 0 2px black;
+        }
+    </style>
+</head>
+<body>
+<div id="stats">
+    <div id="health"></div>
+    <div id="wpm">WPM <span id="wpm-val"></span></div>
+    <div id="score">Score: <span id="score-val"></span></div>
+</div>
+<div id="container"></div>
+<script>
+    const container = document.getElementById("container");
+    const healthElement = document.getElementById("health");
+    const wpmElement = document.getElementById("wpm-val");
+    const scoreElement = document.getElementById("score-val");
+
+    let score = 0;
+    renderScore();
+
+    let sharks = [];
+    let maxHealth = 3;
+    let health = maxHealth;
+
+    let dictionary = ["posted", "subject", "user", "after", "does", "email", "services", "system", "number", "forum", "member", "good", "world", "university", "news", "would", "must", "using", "over", "within", "music", "which", "also", "service", "products", "video", "school", "made", "only", "page", "website", "what", "could", "years", "item", "women", "research", "line", "international", "sign", "right", "their", "send", "like", "order", "books", "center", "such", "copyright", "they", "much", "were", "mail", "read", "design", "states", "policy", "hotel", "software", "real", "product", "days", "into", "should", "used", "available", "year", "name", "here", "review", "time", "book", "well", "prices", "reserved", "before", "area", "reviews", "under", "through", "search", "people", "link", "based", "support", "office", "many", "online", "games", "united", "next", "being", "ebay", "education", "even", "long", "black", "between", "development", "local", "family", "last", "full", "technology", "open", "info", "data", "privacy", "help", "price", "back", "store", "list", "some", "code", "first", "view", "community", "general", "high", "work", "click", "please", "terms", "site", "today", "contact", "other", "them", "than", "details", "where", "results", "know", "post", "check", "case", "information", "because", "public", "when", "free", "show", "january", "each", "great", "comments", "need", "national", "hotels", "most", "group", "best", "take", "company", "travel", "south", "internet", "type", "program", "date", "been", "rights", "address", "message", "life", "said", "links", "find", "part", "make", "items", "business", "management", "very", "then", "health", "there", "report", "want", "city", "file", "state", "phone", "special", "just", "shipping", "these", "index", "those"];
+
+    let target = null;
+
+    function shuffleDictionary() {
+        for (let i = 0; i < dictionary.length - 1; ++i) {
+            const j = Math.floor(Math.random() * (dictionary.length - (i + 1)) + (i + 1));
+            [dictionary[i], dictionary[j]] = [dictionary[j], dictionary[i]];
+        }
+    }
+
+    shuffleDictionary();
+
+    function renderScore() {
+        scoreElement.innerHTML = `${score}`;
+    }
+
+    function fillHealth() {
+        for (let i = 0; i < health; ++i) {
+            const heart = document.createElement("img");
+            heart.src = "heart.svg";
+            heart.classList.add("heart");
+            healthElement.appendChild(heart);
+        }
+    }
+
+    fillHealth();
+
+    function subtractHealth() {
+        health = health - 1;
+        healthElement.childNodes[health].style.visibility = "hidden";
+    }
+
+    function letterAtIndex(shark, index) {
+        return shark.element.childNodes[1].childNodes[index];
+    }
+
+    function updateTarget(key) {
+        const shark = target.shark;
+        const word = dictionary[shark.dictIndex];
+        if (key === word[target.index]) {
+            letterAtIndex(shark, target.index).style.color = "red";
+            target.index += 1;
+            if (target.index === word.length) {
+                const newSharks = [];
+                for (let shark of sharks) {
+                    if (shark !== target.shark) {
+                        newSharks.push(shark);
+                    }
+                }
+                sharks = newSharks;
+                score += 1;
+                renderScore();
+                shark.element.parentElement.removeChild(shark.element);
+                target = null;
+            }
+        }
+    }
+
+    let front = 100;
+
+    function bringSharkToFront(shark) {
+        shark.element.style.zIndex = front;
+        front += 1;
+    }
+
+
+    function keyPressed(key) {
+        if (key === "Backspace" || key === "Delete") {
+            if (target !== null) {
+                const shark = target.shark;
+                target.index -= 1;
+                letterAtIndex(shark, target.index).style.color = "";
+                if (target.index === 0) {
+                    target = null;
+                }
+            }
+        } else {
+            if (target === null) {
+                for (let shark of sharks) {
+                    const word = dictionary[shark.dictIndex];
+                    if (word[0] === key) {
+                        target = {
+                            index: 0,
+                            shark: shark,
+                        };
+                        bringSharkToFront(shark);
+                        updateTarget(key);
+                        break;
+                    }
+                }
+            } else {
+                updateTarget(key);
+            }
+        }
+    }
+
+    window.addEventListener("keypress", function (e) {
+        keyPressed(e.key);
+    });
+
+    let dictionaryIndex = 0;
+
+    function spawnShark() {
+        const index = dictionaryIndex % dictionary.length;
+        dictionaryIndex++;
+        const y = Math.random() * 0.8 + 0.1;
+        const word = dictionary[index];
+        const element = document.createElement("div");
+        let html = `<img src="shark.gif" height="120px"/>`;
+        html += `<div class="shark-word">`;
+        for (let c of word) {
+            html += `<span>${c}</span>`;
+        }
+        html += `</div>`;
+        element.innerHTML = html;
+        element.style.position = "absolute";
+        element.style.left = "100%";
+        element.style.top = `${y * 100}%`;
+        element.classList.add("shark");
+        container.appendChild(element);
+        const shark = {
+            birthTime: prevTime,
+            dictIndex: index,
+            y: y,
+            element: element,
+        };
+        console.log(`spawning shark with word ${word}`);
+        sharks.push(shark);
+    }
+
+    const initialWPM = 60.0;
+    let wordsPerMinute = initialWPM;
+    const wpmGainPerMinute = 100;
+    const wpmGainPerSecond = wpmGainPerMinute / 60.0;
+    const sharkScreenDensity = 20;
+    let sharksPerSecond = null;
+    let sharkLifespanSeconds = null;
+
+    function wpmChanged() {
+        wpmElement.innerText = `${Math.round(wordsPerMinute)}`;
+        // sharks / second * time on screen = shark density
+        // time on screen = 10 / sharks/second
+        sharksPerSecond = wordsPerMinute / 60.0;
+        sharkLifespanSeconds = sharkScreenDensity / sharksPerSecond;
+    }
+
+    wpmChanged();
+
+
+    let prevTime = null;
+
+    function gameOver() {
+
+    }
+
+    function bumpWPM(deltaSeconds) {
+        wordsPerMinute = wordsPerMinute + deltaSeconds * wpmGainPerSecond;
+        wpmChanged();
+    }
+
+    function step(timestampMillis) {
+        let timestampSeconds = timestampMillis / 1000.0;
+        if (prevTime === null) {
+            prevTime = timestampSeconds;
+        }
+        let deltaSeconds = timestampSeconds - prevTime;
+        prevTime = timestampSeconds;
+        let sharkProbability = sharksPerSecond * deltaSeconds;
+        while (sharkProbability > 1.0) {
+            sharkProbability -= 1;
+            spawnShark();
+        }
+        if (Math.random() < sharkProbability) {
+            spawnShark();
+        }
+        bumpWPM(deltaSeconds);
+        let aliveSharks = [];
+        let passedSharks = [];
+        let gameOver = false;
+        for (let i = 0; i < sharks.length; ++i) {
+            const shark = sharks[i];
+            const ageSeconds = prevTime - shark.birthTime;
+            if (ageSeconds > sharkLifespanSeconds) {
+                subtractHealth();
+                if (health === 0) {
+                    alert("Game over! Press close to restart.");
+                    gameOver = true;
+                    break;
+                } else {
+                    passedSharks.push(shark);
+                }
+            } else {
+                aliveSharks.push(shark);
+            }
+        }
+        if (gameOver) {
+            score = 0;
+            renderScore();
+            wordsPerMinute = initialWPM;
+            wpmChanged();
+            health = maxHealth;
+            for (let e of healthElement.childNodes) {
+                e.style.visibility = "visible";
+            }
+            for (let shark of sharks) {
+                shark.element.parentElement.removeChild(shark.element);
+            }
+            sharks = [];
+            prevTime = null;
+        } else {
+            for (let shark of passedSharks) {
+                shark.element.parentElement.removeChild(shark.element);
+                if (target !== null && shark === target.shark) {
+                    target = null;
+                }
+            }
+            sharks = aliveSharks;
+            for (let shark of sharks) {
+                const ageSeconds = prevTime - shark.birthTime;
+                shark.element.style.left = `${(1 - ageSeconds / sharkLifespanSeconds) * 100}%`;
+            }
+        }
+        window.requestAnimationFrame(step);
+    }
+
+    window.requestAnimationFrame(step);
+</script>
+</body>
+</html>
